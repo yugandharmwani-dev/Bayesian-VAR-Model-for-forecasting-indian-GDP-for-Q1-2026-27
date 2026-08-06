@@ -1,0 +1,42 @@
+rm(list = ls())
+set.seed(100)
+
+# Loading Libraries
+library(tseries)
+library(BVAR)
+library(BVARverse)
+library(ggplot2)
+library(zoo)
+library(rmarkdown)
+library(knitr)
+library(readxl)
+
+# Loading Data
+df <- read_excel("C:/Users/yugandhar wani/OneDrive/Desktop/My Folder/GDP Data/Data (2022-23 Series).xlsx")
+df <- df[,c(2,3,4,5,6)]
+df <- ts(data = df,start = c(2023,2),end = c(2026,1),frequency = 4)
+
+# fitting model
+mn <- bv_minnesota(lambda = bv_lambda(mode = 0.2,sd=0.4,min = 1e-04,max = 5),alpha = bv_alpha(mode = 2),var = 1e+07)
+mh <- bv_metropolis(scale_hess = 0.01,adjust_acc = TRUE,acc_lower = 0.25,acc_upper = 0.45)
+priors <- bv_priors(hyper = "auto",mn=mn)
+mod <- bvar(df,4,n_draw = 50000,n_burn = 25000,n_thin = 1,priors = priors,mh=mh)
+
+# Plots
+bv_ggplot(mod,type = "trace")+ggthemes::theme_economist()
+bv_ggplot(mod,type = "dens")+ggthemes::theme_economist()
+
+# forecasts
+fcast <- predict(mod,horizon=1)
+pointfcast <- fcast$quants["50%",,1]
+pointfcast
+
+#Plotting Forecast Data
+fcplot <- bv_ggplot(fcast,vars = "GDP Growth Rate",t_back = 5)+ggthemes::theme_economist()+geom_point(aes(x=time,y=value),inherit.aes = FALSE)+geom_label(aes(x=time,y=value,label = round(value,2)),inherit.aes = FALSE)+scale_x_yearqtr(format = "%Y Q%q")
+start_quarter <- as.yearqtr("2026 Q2")
+all_quarter <- seq(start_quarter,by=0.25,length.out=6)
+quarter_labels <- format(all_quarter,"%Y Q%q")
+quarter_labels
+fcplot+scale_x_continuous(breaks = seq(all_quarter),labels = quarter_labels)
+
+
